@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 class PurchaseOrderRequest(BaseModel):
@@ -25,3 +25,11 @@ class PurchaseOrderRequest(BaseModel):
     processed_at: Optional[str] = None
     processed_at_timestamp: Optional[int] = None
     processed_at_iso8601: Optional[str] = None
+
+class ProcessedOrder(BaseModel):
+    po_number: Optional[str] = None
+    customer: Optional[str] = None
+    items: Optional[list] = []
+    total: Optional[str] = None
+    status: Optional[str] = None
+    note: Optional[str] = None
