@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+PyMuPDF
+pdf2image
+pytesseract
+pydantic
+python-multipart
+uvicorn src.main:app --reload
