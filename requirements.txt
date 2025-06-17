@@ -6,3 +6,5 @@ pytesseract
 pydantic
 python-multipart
 openai
+pdfplumber
+dotenv

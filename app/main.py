@@ -1,25 +1,19 @@
-from fastapi import FastAPI, UploadFile, File, Form
-from app.services.processor import process_purchase_order
-from app.models.schemas import ProcessedOrder
-import logging
+from fastapi import FastAPI, Request
+from app.services.processor import process_raw_text
+from app.models.schemas import ExtractedInvoice
 
 app = FastAPI()
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-@app.post("/webhook", response_model=ProcessedOrder)
-async def webhook_endpoint(
-    email_body: str = Form(None),
-    email_from: str = Form(...),
-    email_to: str = Form(...),
-    email_subject: str = Form(...),
-    file: UploadFile = File(None)
-):
-    logger.info("Received webhook request")
-    metadata = {
-        "from": email_from,
-        "to": email_to,
-        "subject": email_subject
-    }
-    result = await process_purchase_order(metadata, email_body, file)
-    return result
+@app.post("/webhook")
+async def receive_mailparser_data(req: Request) -> ExtractedInvoice:
+    body = await req.json()
+    print("[main] Received webhook")
+
+    email_text = body.get("email_body", "")
+    pdf_text = body.get("pdf_text", "")
+    combined_text = f"{email_text}\n\n{pdf_text}"
+
+    print("[main] Combined text length:", len(combined_text))
+    structured_data = process_raw_text(combined_text)
+
+    return structured_data
