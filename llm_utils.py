@@ -16,21 +16,21 @@ def extract_invoice_data(text: str) -> dict:
 
         parser = PydanticOutputParser(pydantic_object=InvoiceData)
         
-    prompt = ChatPromptTemplate.from_template(
-    "You are an intelligent document parser that extracts invoice data accurately. "
-    "Your job is to extract every possible field from the invoice text below.\n\n"
-    "➡️ You must return ONLY a single valid JSON object that strictly matches the Pydantic schema provided.\n"
-    "➡️ Return all fields, even if they are missing — use null or empty values as needed.\n"
-    "➡️ Do NOT include any markdown, commentary, or code blocks — just the raw JSON object.\n\n"
-    "### Schema:\n{format_instructions}\n\n"
-    "### Invoice Text:\n{text}\n\n"
-    "### Instructions:\n"
-    "- If any numeric value has symbols (like ₹ or $), remove them.\n"
-    "- If fields like subtotal, tax, or shipping are not found, set to 0.0.\n"
-    "- For fields that do not appear at all, use null.\n"
-    "- For line_items, include item_code, description, quantity, unit_price, and total.\n"
-    "- Maintain correct field names and JSON structure at all times.\n"
-)
+        prompt = ChatPromptTemplate.from_template(
+            "You are an intelligent document parser that extracts invoice data accurately. "
+            "Your job is to extract every possible field from the invoice text below.\n\n"
+            "➡️ You must return ONLY a single valid JSON object that strictly matches the Pydantic schema provided.\n"
+            "➡️ Return all fields, even if they are missing — use null or empty values as needed.\n"
+            "➡️ Do NOT include any markdown, commentary, or code blocks — just the raw JSON object.\n\n"
+            "### Schema:\n{format_instructions}\n\n"
+            "### Invoice Text:\n{text}\n\n"
+            "### Instructions:\n"
+            "- If any numeric value has symbols (like ₹ or $), remove them.\n"
+            "- If fields like subtotal, tax, or shipping are not found, set to 0.0.\n"
+            "- For fields that do not appear at all, use null.\n"
+            "- For line_items, include item_code, description, quantity, unit_price, and total.\n"
+            "- Maintain correct field names and JSON structure at all times.\n"
+        )
         
         model = ChatGroq(
             model_name="llama3-70b-8192",
