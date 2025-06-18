@@ -2,13 +2,18 @@ from flask import Flask, request, jsonify
 from llm_utils import extract_invoice_data
 from config import Config
 import logging
-import json
+from datetime import datetime
 
 app = Flask(__name__)
 
+# Configure logging
 logging.basicConfig(
     level=logging.DEBUG if Config.DEBUG else logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('invoice_processor.log'),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -16,56 +21,70 @@ logger = logging.getLogger(__name__)
 def webhook_handler():
     """Handle Mailparser webhook requests"""
     try:
-        logger.info("Received webhook request")
+        request_id = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        logger.info(f"Request {request_id}: Received webhook")
         
         payload = request.json
         if not payload:
-            logger.warning("Empty payload received")
-            return jsonify({"error": "Empty payload"}), 400
+            logger.warning(f"Request {request_id}: Empty payload")
+            return jsonify({
+                "status": "error",
+                "message": "Empty payload",
+                "request_id": request_id
+            }), 400
             
-        # Extract content from either email_body or text (Mailparser sometimes uses different keys)
-        email_body = payload.get('email_body', payload.get('text', ''))
+        # Extract content
+        email_body = payload.get('email_body', '')
         pdf_text = payload.get('pdf_text', '')
         
         if not email_body and not pdf_text:
-            logger.error("No content found in payload")
-            return jsonify({"error": "No content provided"}), 400
+            logger.error(f"Request {request_id}: No content")
+            return jsonify({
+                "status": "error",
+                "message": "No content provided",
+                "request_id": request_id
+            }), 400
             
-        # Combine content with source labels
+        # Combine content
         combined_text = ""
         if email_body:
             combined_text += f"EMAIL CONTENT:\n{email_body}\n\n"
         if pdf_text:
-            combined_text += f"PDF CONTENT:\n{pdf_text}\n"
+            combined_text += f"PDF CONTENT:\n{pdf_text}"
         
-        logger.debug(f"Processing text (first 200 chars): {combined_text[:200]}...")
+        logger.debug(f"Request {request_id}: Processing text")
         
-        # Extract structured data
+        # Extract invoice data
         result = extract_invoice_data(combined_text)
         
-        # Handle error responses
         if "error" in result:
-            logger.error(f"Processing failed: {result['error']}")
-            return jsonify(result), 400
+            logger.error(f"Request {request_id}: Processing failed - {result['error']}")
+            return jsonify({
+                "status": "error",
+                "message": result['error'],
+                "request_id": request_id
+            }), 400
             
         # Successful response
-        logger.info("Invoice data extracted successfully")
+        logger.info(f"Request {request_id}: Invoice processed")
         response = {
             "status": "success",
+            "request_id": request_id,
             "data": result,
-            "source": "email_only" if not pdf_text else "email_with_pdf"
+            "timestamp": datetime.now().isoformat()
         }
         
-        # Return pretty-printed JSON in debug mode
-        if Config.DEBUG:
-            return jsonify(response), 200, {
-                'Content-Type': 'application/json; charset=utf-8',
-                'X-Content-Type-Options': 'nosniff'
-            }
-        return jsonify(response)
+        return jsonify(response), 200, {
+            'Content-Type': 'application/json; charset=utf-8'
+        }
         
     except Exception as e:
-        logger.exception("Error processing webhook")
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Request {request_id}: Processing error")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "request_id": request_id
+        }), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG)

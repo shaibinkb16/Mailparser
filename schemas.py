@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 import re
 
 class Address(BaseModel):
-    company: Optional[str] = Field(None, description="Company name")
+    company: Optional[str] = Field(None)
     contact_person: Optional[str] = Field(None)
     email: Optional[str] = Field(None)
     phone: Optional[str] = Field(None)
@@ -42,7 +42,7 @@ class PartialInvoiceData(BaseModel):
     payment_terms: Optional[str] = Field(None)
     delivery_date: Optional[str] = Field(None)
     special_instructions: Optional[str] = Field(None)
-    manager_approval: Optional[str] = Field(None)
+    manager_approval: Optional[Union[str, dict]] = Field(None)
     budget_code: Optional[str] = Field(None)
     vendor_info: Optional[dict] = Field(None)
     buyer_info: Optional[dict] = Field(None)
