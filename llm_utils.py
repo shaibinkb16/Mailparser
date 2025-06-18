@@ -143,7 +143,8 @@ def extract_and_validate_json(text: str) -> dict:
         # Basic validation
         if not isinstance(data, dict):
             raise ValueError("Expected JSON object")
-            
+        
+        print(f"Extracted JSON: {json_str}")
         return data
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON: {str(e)}")
@@ -169,5 +170,5 @@ def normalize_invoice_data(data: dict) -> dict:
         for amt_field in ['unit_price', 'total']:
             if amt_field in item and isinstance(item[amt_field], str):
                 item[amt_field] = float(re.sub(r'[^\d.]', '', item[amt_field]))
-    
+    print(data)
     return data
