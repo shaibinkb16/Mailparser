@@ -1,64 +1,75 @@
 from langchain_groq import ChatGroq
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import PydanticOutputParser
-from schemas import InvoiceData
+from schemas import InvoiceData, PartialInvoiceData
 from config import Config
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
 def extract_invoice_data(text: str) -> dict:
-    """Extract structured invoice data using LLM"""
+    """Extract structured invoice data using LLM with fallback handling"""
     try:
         if not getattr(Config, 'GROQ_API_KEY', None):
             logger.error("GROQ_API_KEY is missing in Config.")
             return {"error": "GROQ API key is not configured."}
 
-        parser = PydanticOutputParser(pydantic_object=InvoiceData)
-        
-        prompt = ChatPromptTemplate.from_template(
-            "Extract invoice data from the following text. "
-            "Return ONLY a single valid JSON object matching this schema, "
-            "with no explanations, no markdown, and no code blocks. "
-            "If a field is missing, use null. "
-            "Schema:\n{format_instructions}\n"
-            "Text:\n{text}\n"
-        )
-        
-        model = ChatGroq(
-            model_name="llama3-70b-8192",
-            temperature=0,
-            groq_api_key=Config.GROQ_API_KEY
-        )
-        
-        chain = prompt | model | parser
-        
-        raw_chain = prompt | model
-        raw_output = raw_chain.invoke({
-            "text": text,
-            "format_instructions": parser.get_format_instructions()
-        })
-        logger.debug(f"RAW LLM OUTPUT: {raw_output}")
-        
-        result = None
+        # First try with strict validation
         try:
-            result = parser.invoke(raw_output)
-        except Exception as parse_err:
-            logger.error(f"Parsing failed: {parse_err}")
-            return {
-                "error": f"Failed to parse LLM output: {parse_err}",
-                "llm_output": str(raw_output)
-            }
+            parser = PydanticOutputParser(pydantic_object=InvoiceData)
+            prompt = get_prompt_template(parser)
+            model = get_groq_model()
+            chain = prompt | model | parser
+            result = chain.invoke({
+                "text": text,
+                "format_instructions": parser.get_format_instructions()
+            })
+            return result.dict()
+        except Exception as strict_error:
+            logger.warning(f"Strict parsing failed, trying partial mode: {strict_error}")
             
-        if result is None:
-            logger.error("LLM output is None after parsing.")
-            return {
-                "error": "LLM output is None after parsing.",
-                "llm_output": str(raw_output)
-            }
-            
-        return result.dict()
-        
+            # Fallback to partial validation
+            try:
+                partial_parser = PydanticOutputParser(pydantic_object=PartialInvoiceData)
+                prompt = get_prompt_template(partial_parser)
+                model = get_groq_model()
+                chain = prompt | model | partial_parser
+                result = chain.invoke({
+                    "text": text,
+                    "format_instructions": partial_parser.get_format_instructions()
+                })
+                return result.dict()
+            except Exception as partial_error:
+                logger.error(f"Partial parsing failed: {partial_error}")
+                return {
+                    "error": "Failed to parse invoice data",
+                    "details": str(partial_error),
+                    "llm_input": text[:500] + "..." if len(text) > 500 else text
+                }
+
     except Exception as e:
-        logger.error(f"LLM extraction failed: {str(e)}")
+        logger.exception("LLM extraction failed")
         return {"error": f"Failed to extract invoice data: {str(e)}"}
+
+def get_prompt_template(parser):
+    return ChatPromptTemplate.from_template(
+        """Extract invoice data from this text exactly matching this schema.
+        Return ONLY valid JSON, no explanations, no markdown, no code blocks.
+        For missing fields, use null. Convert all amounts to numbers.
+        
+        Schema Instructions:
+        {format_instructions}
+        
+        Text to parse:
+        {text}
+        
+        Output ONLY the JSON object:"""
+    )
+
+def get_groq_model():
+    return ChatGroq(
+        model_name="llama3-70b-8192",
+        temperature=0,
+        groq_api_key=Config.GROQ_API_KEY
+    )
